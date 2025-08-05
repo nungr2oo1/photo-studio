@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Photo Studio Admin Panel</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+  <div class="container mx-auto px-4 py-8">
+    <!-- Login Section -->
+    <div id="loginSection" class="max-w-md mx-auto bg-white rounded-lg shadow-md p-8">
+      <h2 class="text-2xl font-bold mb-6 text-center">Admin Login</h2>
+      <form id="loginForm" class="space-y-4">
+        <div>
+          <label class="block text-gray-700">Username</label>
+          <input type="text" id="username" class="w-full border rounded px-3 py-2" required>
+        </div>
+        <div>
+          <label class="block text-gray-700">Password</label>
+          <input type="password" id="password" class="w-full border rounded px-3 py-2" required>
+        </div>
+        <button type="submit" class="w-full bg-blue-600 text-white rounded py-2 hover:bg-blue-700">Login</button>
+      </form>
+    </div>
+
+    <!-- Dashboard Section (Initially Hidden) -->
+    <div id="dashboardSection" class="hidden">
+      <div class="flex justify-between items-center mb-8">
+        <h1 class="text-3xl font-bold">Photo Studio Dashboard</h1>
+        <button id="logoutBtn" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">Logout</button>
+      </div>
+
+      <!-- Stats Grid -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div class="bg-white rounded-lg shadow p-6">
+          <h3 class="text-lg font-semibold mb-2">Total Revenue</h3>
+          <p id="totalRevenue" class="text-3xl font-bold text-green-600">₹0</p>
+        </div>
+        <div class="bg-white rounded-lg shadow p-6">
+          <h3 class="text-lg font-semibold mb-2">Total Sessions</h3>
+          <p id="totalSessions" class="text-3xl font-bold text-blue-600">0</p>
+        </div>
+        <div class="bg-white rounded-lg shadow p-6">
+          <h3 class="text-lg font-semibold mb-2">Today's Sessions</h3>
+          <p id="todaySessions" class="text-3xl font-bold text-purple-600">0</p>
+        </div>
+      </div>
+
+      <!-- Charts -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <div class="bg-white rounded-lg shadow p-6">
+          <h3 class="text-lg font-semibold mb-4">Revenue Trend</h3>
+          <canvas id="revenueChart"></canvas>
+        </div>
+        <div class="bg-white rounded-lg shadow p-6">
+          <h3 class="text-lg font-semibold mb-4">Session Types</h3>
+          <canvas id="sessionTypeChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Recent Sessions Table -->
+      <div class="bg-white rounded-lg shadow overflow-hidden">
+        <h3 class="text-lg font-semibold p-6 bg-gray-50 border-b">Recent Sessions</h3>
+        <div class="overflow-x-auto">
+          <table class="w-full">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mode</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Photos</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="recentSessionsBody" class="bg-white divide-y divide-gray-200">
+              <!-- Sessions will be populated here -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Admin credentials (in a real app, this would be server-side)
+    const ADMIN_CREDENTIALS = {
+      username: 'admin',
+      password: 'admin123' // This should be properly hashed in a real application
+    };
+
+    // Session data storage (in a real app, this would be in a database)
+    let sessionData = JSON.parse(localStorage.getItem('photoStudioSessions') || '[]');
+    
+    // DOM Elements
+    const loginSection = document.getElementById('loginSection');
+    const dashboardSection = document.getElementById('dashboardSection');
+    const loginForm = document.getElementById('loginForm');
+    const logoutBtn = document.getElementById('logoutBtn');
+
+    // Login handler
+    loginForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const username = document.getElementById('username').value;
+      const password = document.getElementById('password').value;
+
+      if (username === ADMIN_CREDENTIALS.username && password === ADMIN_CREDENTIALS.password) {
+        loginSection.classList.add('hidden');
+        dashboardSection.classList.remove('hidden');
+        updateDashboard();
+      } else {
+        alert('Invalid credentials!');
+      }
+    });
+
+    // Logout handler
+    logoutBtn.addEventListener('click', () => {
+      loginSection.classList.remove('hidden');
+      dashboardSection.classList.add('hidden');
+      document.getElementById('username').value = '';
+      document.getElementById('password').value = '';
+    });
+
+    // Update dashboard data
+    function updateDashboard() {
+      // Update stats
+      const totalRevenue = sessionData.reduce((sum, session) => sum + session.amount, 0);
+      const totalSessions = sessionData.length;
+      const today = new Date().toDateString();
+      const todaySessionsCount = sessionData.filter(session => 
+        new Date(session.timestamp).toDateString() === today
+      ).length;
+
+      document.getElementById('totalRevenue').textContent = `₹${totalRevenue}`;
+      document.getElementById('totalSessions').textContent = totalSessions;
+      document.getElementById('todaySessions').textContent = todaySessionsCount;
+
+      // Update revenue chart
+      updateRevenueChart();
+
+      // Update session type chart
+      updateSessionTypeChart();
+
+      // Update recent sessions table
+      updateRecentSessionsTable();
+    }
+
+    // Update revenue chart
+    function updateRevenueChart() {
+      const ctx = document.getElementById('revenueChart').getContext('2d');
+      
+      // Group sessions by date and calculate daily revenue
+      const dailyRevenue = {};
+      sessionData.forEach(session => {
+        const date = new Date(session.timestamp).toLocaleDateString();
+        dailyRevenue[date] = (dailyRevenue[date] || 0) + session.amount;
+      });
+
+      new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: Object.keys(dailyRevenue),
+          datasets: [{
+            label: 'Daily Revenue (₹)',
+            data: Object.values(dailyRevenue),
+            borderColor: 'rgb(59, 130, 246)',
+            tension: 0.1
+          }]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            y: {
+              beginAtZero: true
+            }
+          }
+        }
+      });
+    }
+
+    // Update session type chart
+    function updateSessionTypeChart() {
+      const ctx = document.getElementById('sessionTypeChart').getContext('2d');
+      
+      // Count sessions by type
+      const sessionTypes = {
+        normal: sessionData.filter(session => session.mode === 'normal').length,
+        event: sessionData.filter(session => session.mode === 'event').length
+      };
+
+      new Chart(ctx, {
+        type: 'pie',
+        data: {
+          labels: ['Normal Mode', 'Event Mode'],
+          datasets: [{
+            data: [sessionTypes.normal, sessionTypes.event],
+            backgroundColor: [
+              'rgb(59, 130, 246)',
+              'rgb(147, 51, 234)'
+            ]
+          }]
+        },
+        options: {
+          responsive: true
+        }
+      });
+    }
+
+    // Update recent sessions table
+    function updateRecentSessionsTable() {
+      const tbody = document.getElementById('recentSessionsBody');
+      tbody.innerHTML = '';
+
+      // Sort sessions by date (most recent first)
+      const sortedSessions = [...sessionData].sort((a, b) => 
+        new Date(b.timestamp) - new Date(a.timestamp)
+      );
+
+      sortedSessions.forEach(session => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td class="px-6 py-4 whitespace-nowrap">
+            ${new Date(session.timestamp).toLocaleString()}
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap">
+            ${session.mode.charAt(0).toUpperCase() + session.mode.slice(1)}
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap">
+            ₹${session.amount}
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap">
+            ${session.photoCount}
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap">
+            <button onclick="viewSession('${session.id}')" class="text-blue-600 hover:text-blue-800">
+              View Photos
+            </button>
+          </td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
+
+    // View session photos
+    function viewSession(sessionId) {
+      const session = sessionData.find(s => s.id === sessionId);
+      if (session) {
+        window.open(`generated/${session.mode}/${session.id}`, '_blank');
+      }
+    }
+
+    // Add session data (this function will be called from index.html)
+    window.addSessionData = function(sessionInfo) {
+      sessionData.push(sessionInfo);
+      localStorage.setItem('photoStudioSessions', JSON.stringify(sessionData));
+      if (dashboardSection.classList.contains('hidden') === false) {
+        updateDashboard();
+      }
+    };
+  </script>
+</body>
+</html>

@@ -5,10 +5,14 @@
   <title>Photo Studio</title>
   <!-- Tailwind via CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Razorpay Script -->
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
   <!-- Material Web Components -->
   <script type="module">
     import '@material/web/button/filled-button.js';
   </script>
+  <!-- QR Code library -->
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
   <style>
     .photo-grid {
       display: grid;
@@ -40,33 +44,175 @@
       transform: translateY(0);
       box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     }
+    #qrCodeContainer {
+      display: none;
+      margin-top: 2rem;
+      padding: 1rem;
+      background: white;
+      border-radius: 0.5rem;
+      text-align: center;
+    }
+    #qrCode {
+      margin: 1rem auto;
+    }
+    #downloadLink {
+      color: #2563eb;
+      text-decoration: underline;
+      margin-top: 0.5rem;
+      display: block;
+    }
   </style>
 </head>
 <body class="bg-gray-800 min-h-screen flex flex-col items-center p-6">
   <h1 class="text-4xl font-bold mb-8 text-white">Photo Studio</h1>
-  
-  <div class="relative">
-    <video id="video" width="640" height="480" autoplay class="rounded-xl shadow-lg"></video>
-    <div id="timer" class="timer">3</div>
+
+  <!-- Mode Selection Screen -->
+  <div id="modeSelection" class="flex flex-col items-center">
+    <h2 class="text-2xl font-semibold mb-8 text-white">Select Mode</h2>
+    <div class="flex gap-8">
+      <div class="mode-card cursor-pointer" onclick="selectMode('normal')">
+        <div class="bg-blue-600 p-8 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+          <h3 class="text-xl font-bold text-white mb-4">Normal Mode</h3>
+          <p class="text-blue-100">Take standard photo booth pictures with customizable settings.</p>
+        </div>
+      </div>
+      <div class="mode-card cursor-pointer" onclick="selectMode('event')">
+        <div class="bg-purple-600 p-8 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+          <h3 class="text-xl font-bold text-white mb-4">Event Mode</h3>
+          <p class="text-purple-100">Special features for events with custom branding and layouts.</p>
+        </div>
+      </div>
+    </div>
   </div>
-  
-  <div class="mt-6 flex gap-4">
-    <md-filled-button id="captureBtn" class="!bg-blue-600">Take 4 Photos</md-filled-button>
-    <md-filled-button id="printBtn" class="!bg-green-600">Print All</md-filled-button>
-    <md-filled-button id="resetBtn" class="!bg-red-600">Reset</md-filled-button>
-  </div>
-  
-  <div class="photo-grid mt-8">
-    <canvas id="canvas1" width="320" height="240" class="rounded-xl shadow-lg bg-gray-900"></canvas>
-    <canvas id="canvas2" width="320" height="240" class="rounded-xl shadow-lg bg-gray-900"></canvas>
-    <canvas id="canvas3" width="320" height="240" class="rounded-xl shadow-lg bg-gray-900"></canvas>
-    <canvas id="canvas4" width="320" height="240" class="rounded-xl shadow-lg bg-gray-900"></canvas>
+
+  <!-- Main Photo Interface (Initially Hidden) -->
+  <div id="photoInterface" class="hidden w-full flex flex-col items-center">
+    <div class="relative">
+      <video id="video" width="640" height="480" autoplay class="rounded-xl shadow-lg"></video>
+      <div id="timer" class="timer">3</div>
+    </div>
+    
+    <div class="mt-6 flex gap-4">
+      <md-filled-button id="captureBtn" class="!bg-blue-600">Take 4 Photos</md-filled-button>
+      <md-filled-button id="qrCodeBtn" class="!bg-purple-600" disabled>Generate QR Code</md-filled-button>
+      <md-filled-button id="printBtn" class="!bg-green-600">Print All</md-filled-button>
+      <md-filled-button id="resetBtn" class="!bg-red-600">Reset</md-filled-button>
+      <md-filled-button id="changeModeBtn" class="!bg-gray-600">Change Mode</md-filled-button>
+    </div>
+    
+    <div class="photo-grid mt-8">
+      <canvas id="canvas1" width="320" height="240" class="rounded-xl shadow-lg bg-gray-900"></canvas>
+      <canvas id="canvas2" width="320" height="240" class="rounded-xl shadow-lg bg-gray-900"></canvas>
+      <canvas id="canvas3" width="320" height="240" class="rounded-xl shadow-lg bg-gray-900"></canvas>
+      <canvas id="canvas4" width="320" height="240" class="rounded-xl shadow-lg bg-gray-900"></canvas>
+    </div>
+
+    <!-- QR Code Container -->
+    <div id="qrCodeContainer" class="text-black">
+      <h3 class="text-xl font-semibold">Scan to Download Photos</h3>
+      <canvas id="qrCode" width="200" height="200"></canvas>
+      <a id="downloadLink" href="#" target="_blank">Direct Download Link</a>
+    </div>
   </div>
 
   <script>
+    // Mode selection elements
+    const modeSelection = document.getElementById('modeSelection');
+    const photoInterface = document.getElementById('photoInterface');
+    const changeModeBtn = document.getElementById('changeModeBtn');
+    let currentMode = null;
+
+    // Function to handle Razorpay payment
+    function handlePayment() {
+      const options = {
+        key: 'rzp_test_1DP5mmOlF5G5ag', // Razorpay test key
+        amount: 20000, // Amount in paise (₹200)
+        currency: 'INR',
+        name: 'Photo Studio',
+        description: 'Normal Mode Photo Session',
+        image: 'https://via.placeholder.com/128x128.png?text=PS', // Optional logo
+        handler: function(response) {
+          // Payment successful
+          console.log('Payment successful:', response.razorpay_payment_id);
+          
+          // Create payment record for admin panel
+          const paymentInfo = {
+            id: response.razorpay_payment_id,
+            timestamp: new Date().toISOString(),
+            amount: 200,
+            mode: 'normal',
+            status: 'completed'
+          };
+          
+          // Store payment info in localStorage
+          const payments = JSON.parse(localStorage.getItem('photoStudioPayments') || '[]');
+          payments.push(paymentInfo);
+          localStorage.setItem('photoStudioPayments', JSON.stringify(payments));
+          
+          // Show photo interface after successful payment
+          modeSelection.classList.add('hidden');
+          photoInterface.classList.remove('hidden');
+          captureBtn.textContent = 'Take 4 Photos';
+          document.querySelector('h1').textContent = 'Photo Studio - Normal Mode';
+          initializeCamera();
+        },
+        prefill: {
+          name: 'Test User',
+          email: 'test@example.com',
+          contact: '9999999999'  // Test phone number
+        },
+        notes: {
+          mode: 'Normal Mode',
+          session_type: 'Photo Booth'
+        },
+        theme: {
+          color: '#2563eb' // Blue color matching our UI
+        }
+      };
+
+      const razorpayInstance = new Razorpay(options);
+      razorpayInstance.open();
+    }
+
+    // Function to handle mode selection
+    function selectMode(mode) {
+      currentMode = mode;
+      
+      // Configure interface based on selected mode
+      if (mode === 'event') {
+        // Event mode - direct access
+        modeSelection.classList.add('hidden');
+        photoInterface.classList.remove('hidden');
+        captureBtn.textContent = 'Take Event Photos';
+        document.querySelector('h1').textContent = 'Photo Studio - Event Mode';
+        initializeCamera();
+      } else {
+        // Normal mode - show payment first
+        handlePayment();
+      }
+    }
+
+    // Change mode button handler
+    changeModeBtn.addEventListener('click', () => {
+      // Reset the interface
+      resetPhotos();
+      
+      // Stop the video stream
+      if (video.srcObject) {
+        video.srcObject.getTracks().forEach(track => track.stop());
+      }
+      
+      // Show mode selection
+      photoInterface.classList.add('hidden');
+      modeSelection.classList.remove('hidden');
+      currentMode = null;
+      document.querySelector('h1').textContent = 'Photo Studio';
+    });
+
     const video = document.getElementById('video');
     const timer = document.getElementById('timer');
     const captureBtn = document.getElementById('captureBtn');
+    const qrCodeBtn = document.getElementById('qrCodeBtn');
     const printBtn = document.getElementById('printBtn');
     const resetBtn = document.getElementById('resetBtn');
     const canvases = [
@@ -103,7 +249,7 @@
       }
     }
 
-    initializeCamera();
+    // Camera will be initialized after mode selection
 
     // Timer function with visual feedback
     function startTimer(callback) {
@@ -190,12 +336,19 @@
         
         currentPhoto++;
         
+        // Enable QR code button after first photo
+        if (currentPhoto === 1) {
+          qrCodeBtn.disabled = false;
+        }
+        
         if (currentPhoto < 4) {
           cleanupTimer = startTimer(capturePhoto);
         } else {
           isCapturing = false;
           captureBtn.disabled = false;
           printBtn.disabled = false;
+          // Enable QR code button after at least one photo
+          qrCodeBtn.disabled = false;
         }
       };
       
@@ -210,13 +363,170 @@
       };
     }
 
+    // Save photos to filesystem and generate unique URL
+    async function generatePhotoDownloadURL(photos) {
+      const sessionId = Date.now().toString();
+      const timestamp = new Date().toISOString();
+      const amount = currentMode === 'normal' ? 200 : 0; // ₹200 for normal mode
+      
+      // Create session directory
+      const sessionDir = `generated/${currentMode}/${sessionId}`;
+      
+      try {
+        // Save photos as files
+        const photoPromises = photos.map(async (canvas, index) => {
+          const photoName = `photo_${index + 1}.jpg`;
+          const photoData = canvas.toDataURL('image/jpeg', 0.8);
+          
+          // Convert base64 to blob
+          const response = await fetch(photoData);
+          const blob = await response.blob();
+          
+          // Save file using File System Access API
+          try {
+            const handle = await window.showSaveFilePicker({
+              suggestedName: photoName,
+              types: [{
+                description: 'JPEG Image',
+                accept: {'image/jpeg': ['.jpg']}
+              }],
+              startIn: sessionDir
+            });
+            const writable = await handle.createWritable();
+            await writable.write(blob);
+            await writable.close();
+            return photoName;
+          } catch (err) {
+            console.error('Error saving file:', err);
+            throw err;
+          }
+        });
+        
+        await Promise.all(photoPromises);
+        
+        // Create session data for admin panel
+        const sessionInfo = {
+          id: sessionId,
+          timestamp,
+          mode: currentMode,
+          amount,
+          photoCount: photos.length,
+          directory: sessionDir
+        };
+        
+        // Add session data to admin panel
+        if (window.opener && window.opener.addSessionData) {
+          window.opener.addSessionData(sessionInfo);
+        }
+        
+        // Create a URL that includes the session info
+        const downloadURL = `${window.location.origin}${window.location.pathname}#session=${sessionId}`;
+        return downloadURL;
+      } catch (err) {
+        console.error('Error saving photos:', err);
+        alert('Error saving photos. Please try again.');
+        throw err;
+      }
+    }
+
+    // Generate and display QR code
+    function showQRCode() {
+      // Check if at least one photo is taken
+      const hasPhotos = canvases.some(canvas => {
+        try {
+          const ctx = canvas.getContext('2d');
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          // Check if the image has any non-black pixels
+          for (let i = 0; i < imageData.data.length; i += 4) {
+            if (imageData.data[i] !== 0 || imageData.data[i + 1] !== 0 || imageData.data[i + 2] !== 0) {
+              return true;
+            }
+          }
+          return false;
+        } catch (error) {
+          console.error('Error checking canvas:', error);
+          return false;
+        }
+      });
+
+      if (!hasPhotos) {
+        alert('Please take at least one photo before generating QR code!');
+        return;
+      }
+
+      const qrCodeContainer = document.getElementById('qrCodeContainer');
+      const qrCodeCanvas = document.getElementById('qrCode');
+      const downloadLink = document.getElementById('downloadLink');
+      
+      // Generate download URL
+      const downloadURL = generatePhotoDownloadURL(canvases);
+      
+      // Clear previous QR code
+      const qrContext = qrCodeCanvas.getContext('2d');
+      qrContext.clearRect(0, 0, qrCodeCanvas.width, qrCodeCanvas.height);
+      
+      // Generate QR code
+      QRCode.toCanvas(qrCodeCanvas, downloadURL, { 
+        width: 200,
+        margin: 2,
+        color: {
+          dark: '#000000',
+          light: '#ffffff'
+        }
+      }, (error) => {
+        if (error) {
+          console.error('Error generating QR code:', error);
+          alert('Error generating QR code. Please try again.');
+        } else {
+          // Update download link
+          downloadLink.href = downloadURL;
+          
+          // Show QR code container
+          qrCodeContainer.style.display = 'block';
+        }
+      });
+    }
+
+    // Check for download data in URL and handle photo download
+    function checkForDownload() {
+      const hash = window.location.hash;
+      if (hash.startsWith('#download=')) {
+        try {
+          const base64Data = hash.replace('#download=', '');
+          const jsonStr = atob(base64Data);
+          const downloadData = JSON.parse(jsonStr);
+          
+          // Create download links for each photo
+          downloadData.photos.forEach((photo, index) => {
+            const link = document.createElement('a');
+            link.href = photo.data;
+            link.download = photo.name;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+          });
+          
+          // Clear the hash after download
+          window.location.hash = '';
+        } catch (error) {
+          console.error('Error processing download:', error);
+          alert('Error downloading photos. Please try again.');
+        }
+      }
+    }
+
     // Reset all photos
     function resetPhotos() {
       contexts.forEach(ctx => {
         ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
       });
       currentPhoto = 0;
+      isCapturing = false;
       captureBtn.disabled = false;
+      qrCodeBtn.disabled = true; // Disable QR code button when resetting
+      
+      // Hide QR code container
+      document.getElementById('qrCodeContainer').style.display = 'none';
     }
 
     // Print all photos
@@ -321,8 +631,14 @@
     }
 
     captureBtn.addEventListener('click', captureSequence);
+    qrCodeBtn.addEventListener('click', showQRCode);
     printBtn.addEventListener('click', printPhotos);
     resetBtn.addEventListener('click', resetPhotos);
+
+    // Check for downloads when page loads
+    window.addEventListener('load', checkForDownload);
+    // Check for downloads when hash changes
+    window.addEventListener('hashchange', checkForDownload);
   </script>
 </body>
 </html>
