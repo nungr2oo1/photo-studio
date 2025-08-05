@@ -10,7 +10,7 @@ function createWindow() {
     },
   });
 
-  win.loadFile('admin.html'); // Load your HTML file
+  win.loadFile('index.html'); // Load your HTML file
 }
 
 app.whenReady().then(() => {

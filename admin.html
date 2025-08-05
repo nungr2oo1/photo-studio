@@ -7,10 +7,18 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body class="bg-gray-100 min-h-screen">
-  <div class="container mx-auto px-4 py-8">
+  <div class="container mx-auto px-4 py-8 min-h-screen flex items-center justify-center">
     <!-- Login Section -->
-    <div id="loginSection" class="max-w-md mx-auto bg-white rounded-lg shadow-md p-8">
-      <h2 class="text-2xl font-bold mb-6 text-center">Admin Login</h2>
+    <div id="loginSection" class="max-w-md w-full bg-white rounded-lg shadow-md p-8">
+      <div class="flex justify-between items-center mb-6">
+        <h2 class="text-2xl font-bold">Admin Login</h2>
+        <a href="index.html" class="text-gray-600 hover:text-gray-800 flex items-center gap-2">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L4.414 9H17a1 1 0 110 2H4.414l5.293 5.293a1 1 0 010 1.414z" clip-rule="evenodd" />
+          </svg>
+          Back
+        </a>
+      </div>
       <form id="loginForm" class="space-y-4">
         <div>
           <label class="block text-gray-700">Username</label>
